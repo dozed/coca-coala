@@ -32,7 +32,7 @@ object CocaCoalaBuild extends Build {
     val pegDownProcessor = new PegDownProcessor()
 
     def modExt(file: File, newExt: String): File = {
-      val dir = file.getPath.split(Path.sep).dropRight(1).mkString(Path.sep.toString)
+      val dir = file.getPath.split(sbt.Path.sep).dropRight(1).mkString(sbt.Path.sep.toString)
       new File(f"$dir/${file.base}.$newExt")
     }
 
