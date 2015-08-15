@@ -1,3 +1,6 @@
+import org.http4s.MediaType
+import org.http4s.headers.`Content-Type`
+import org.http4s.server.Server
 import org.pegdown.PegDownProcessor
 import sbt.Keys._
 import sbt._
@@ -10,6 +13,9 @@ object CocaCoalaBuild extends Build {
   val go = taskKey[Seq[File]]("compiles all sources from the source directory (md -> html, scss -> css)")
   val from = settingKey[File]("directory which contains the web sources")
   val to = settingKey[File]("directory where compiled web resources are written to")
+
+  val start = taskKey[Unit]("starts HTTP server for static resources")
+  val stop = taskKey[Unit]("stops HTTP server")
 
   // task definition
   // - compiles *.md from  to "where" (target/stage)
@@ -39,6 +45,60 @@ object CocaCoalaBuild extends Build {
       f
     }
   }
+
+
+  import org.http4s.Response
+  import org.http4s.dsl._
+  import org.http4s.server.HttpService
+  import org.http4s.server.blaze.BlazeBuilder
+
+  import scalaz.concurrent.Task
+  import scalaz.stream.Process
+  import scalaz.stream.io.chunkR
+
+
+  var server: Option[Server] = None
+
+  val stopWebServer = Def.task[Unit] {
+    server.foreach(_.shutdownNow)
+  }
+  
+  val startWebServer = Def.task[Unit] {
+
+    def staticResource(file: String): Task[Response] = {
+      val bytes = Process.constant(8*1024)
+        .toSource
+        .through(chunkR(new java.io.FileInputStream(to.value / file)))
+        .runLog
+        .run
+        .map(_.toArray)
+        .toArray
+        .flatten
+
+      val mime = {
+        val parts = file.split('.')
+        if (parts.length > 0) MediaType.forExtension(parts.last)
+          .getOrElse(MediaType.`application/octet-stream`)
+        else MediaType.`application/octet-stream`
+      }
+
+      Ok(bytes).putHeaders(`Content-Type`(mime))
+    }
+
+    val service: HttpService = HttpService {
+
+      case r @ GET -> Root / name => staticResource(r.pathInfo)
+
+    }
+    
+    val s = BlazeBuilder
+      .bindHttp(8080, "localhost")
+      .mountService(service)
+      .run
+
+    server = Some(s)
+
+  }
   
   val mySettings = Seq(
     name := "Coca Coala",
@@ -46,9 +106,14 @@ object CocaCoalaBuild extends Build {
     version := "0.1-SNAPSHOT",
     scalaVersion := "2.11.7",
 
+    resolvers += "Scalaz Bintray Repo" at "http://dl.bintray.com/scalaz/releases",
+
     from := (sourceDirectory in Compile).value / "public",
     to := (target in Compile).value / "stage",
     go <<= compileMarkdown,
+
+    start <<= startWebServer.dependsOn(stop),
+    stop <<= stopWebServer,
 
     docker <<= docker.dependsOn(go),
     dockerfile in docker := {
