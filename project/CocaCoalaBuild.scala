@@ -1,6 +1,9 @@
 import org.pegdown.PegDownProcessor
 import sbt.Keys._
 import sbt._
+import sbtdocker.DockerKeys._
+import sbtdocker.DockerPlugin
+import sbtdocker.mutable.Dockerfile
 
 object CocaCoalaBuild extends Build {
 
@@ -42,14 +45,47 @@ object CocaCoalaBuild extends Build {
     organization := "no.org",
     version := "0.1-SNAPSHOT",
     scalaVersion := "2.11.7",
+
     from := (sourceDirectory in Compile).value / "public",
     to := (target in Compile).value / "stage",
-    go <<= compileMarkdown
+    go <<= compileMarkdown,
+
+    docker <<= docker.dependsOn(go),
+    dockerfile in docker := {
+
+      val nginxConf = (sourceDirectory in Compile).value / "docker" / "nginx"
+
+      new Dockerfile {
+
+        from("ubuntu:14.04")
+
+        runRaw("apt-get update")
+        runRaw("apt-get install -y vim curl wget nginx")
+
+        runRaw("rm -rf /etc/nginx/conf.d")
+        runRaw("rm -rf /etc/nginx/sites-enabled/*")
+
+        add(nginxConf, "/etc/nginx/conf.d")
+
+        add(to.value, "/app/public")
+
+        runRaw("""echo "daemon off;" >> /etc/nginx/nginx.conf""")
+
+        expose(80)
+
+        workDir("/app")
+
+        cmdRaw("service nginx start")
+
+      }
+
+    }
   )
 
   lazy val cocaCoala = Project(
     id = "coca-coala",
     base = file(".")
   ).settings(mySettings: _*)
+  .enablePlugins(DockerPlugin)
 
 }
