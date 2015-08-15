@@ -111,6 +111,7 @@ object CocaCoalaBuild extends Build {
     from := (sourceDirectory in Compile).value / "public",
     to := (target in Compile).value / "stage",
     go <<= compileMarkdown,
+    watchSources += from.value,
 
     start <<= startWebServer.dependsOn(stop),
     stop <<= stopWebServer,
