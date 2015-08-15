@@ -1,12 +1,18 @@
-import org.http4s.MediaType
+import org.http4s.{MediaType, Response}
+import org.http4s.dsl._
 import org.http4s.headers.`Content-Type`
-import org.http4s.server.Server
+import org.http4s.server.{HttpService, Server}
+import org.http4s.server.blaze.BlazeBuilder
 import org.pegdown.PegDownProcessor
 import sbt.Keys._
 import sbt._
 import sbtdocker.DockerKeys._
 import sbtdocker.DockerPlugin
 import sbtdocker.mutable.Dockerfile
+
+import scalaz.concurrent.Task
+import scalaz.stream.Process
+import scalaz.stream.io.chunkR
 
 object CocaCoalaBuild extends Build {
 
@@ -45,17 +51,6 @@ object CocaCoalaBuild extends Build {
       f
     }
   }
-
-
-  import org.http4s.Response
-  import org.http4s.dsl._
-  import org.http4s.server.HttpService
-  import org.http4s.server.blaze.BlazeBuilder
-
-  import scalaz.concurrent.Task
-  import scalaz.stream.Process
-  import scalaz.stream.io.chunkR
-
 
   var server: Option[Server] = None
 
